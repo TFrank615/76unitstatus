@@ -10,6 +10,9 @@
         body {
             font-family: 'Inter', sans-serif;
         }
+        .button-spinner {
+            display: none;
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen py-12">
@@ -17,7 +20,7 @@
     <div class="w-full max-w-lg bg-white rounded-lg shadow-xl p-8">
         <div class="text-center mb-8">
             <h1 class="text-2xl font-bold text-gray-800">HTFD Unit Status Update</h1>
-            <p class="text-gray-500 mt-2"></p>
+            <p class="text-gray-500 mt-2">Update the status and location for a specific unit.</p>
         </div>
 
         <form id="update-form">
@@ -56,17 +59,12 @@
                     <label for="comments" class="block text-sm font-medium text-gray-700">Comments</label>
                     <textarea name="comments" id="comments" rows="3" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea>
                 </div>
-
-                <div>
-                    <label for="reported" class="block text-sm font-medium text-gray-700">Date Reported</label>
-                    <input type="date" name="reported" id="reported" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                </div>
             </div>
 
             <div class="mt-8">
                 <button type="submit" id="submit-button" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
                     <span class="button-text">Update Record</span>
-                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden button-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white button-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
@@ -78,24 +76,17 @@
     </div>
 
     <script>
+        // --- 1. SET YOUR WEB APP URL HERE (Use the same URL as the other form) ---
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzflDfUBo-Lep0ifEa6OJwoX1O8UfqHBA4EFNG4i6Gzule2o8aB5_9ElhzX0itCuafJ/exec';
+        // ------------------------------------
+
         const form = document.getElementById('update-form');
         const submitButton = document.getElementById('submit-button');
         const buttonText = submitButton.querySelector('.button-text');
         const buttonSpinner = submitButton.querySelector('.button-spinner');
         const messageBox = document.getElementById('message-box');
 
-        // Set the date input to today's date and location to default
         document.addEventListener('DOMContentLoaded', () => {
-            const dateInput = document.getElementById('reported');
-            if (dateInput) {
-                // This creates the date in the user's local timezone and formats it to YYYY-MM-DD
-                const today = new Date();
-                const yyyy = today.getFullYear();
-                const mm = String(today.getMonth() + 1).padStart(2, '0'); // Months are 0-based, so we add 1
-                const dd = String(today.getDate()).padStart(2, '0');
-                dateInput.value = `${yyyy}-${mm}-${dd}`;
-            }
-
             const locationInput = document.getElementById('location');
             if (locationInput) {
                 locationInput.value = 'STATION 76';
@@ -107,58 +98,66 @@
             }
         });
 
-        // ======================================================================
-        // IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT URL HERE
-        // Follow the instructions to deploy the script and get the URL.
-        // ======================================================================
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyREvAwFwJceT4biTZJ3CqFP2rTEpUVKObm7wJDr48R7_2chivrcYUaHP2WJh8tQnfT/exec';
-
-        form.addEventListener('submit', function(e) {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            if (SCRIPT_URL === 'PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
+            if (WEB_APP_URL === 'PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
                 showMessage('Please paste your Google Apps Script URL into the HTML file.', 'error');
                 return;
             }
 
             setLoading(true);
 
-            fetch(SCRIPT_URL, {
-                method: 'POST',
-                body: new FormData(form),
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log(data);
-                showMessage(data.message, data.result);
-                if (data.result === 'success') {
+            try {
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData.entries());
+
+                // --- 2. ADD THE ACTION IDENTIFIER ---
+                data.action = 'updateUnit';
+                // ------------------------------------
+                
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    cache: 'no-cache',
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8',
+                    },
+                    body: JSON.stringify(data),
+                });
+                
+                const result = await response.json();
+
+                showMessage(result.message, result.status);
+
+                if (result.status === 'success') {
                     form.reset();
+                     // Restore default values after successful submission
+                    document.getElementById('location').value = 'STATION 76';
+                    document.getElementById('comments').value = '-';
                 }
-            })
-            .catch(error => {
+
+            } catch (error) {
                 console.error('Error:', error);
                 showMessage('An error occurred. Check the console for details.', 'error');
-            })
-            .finally(() => {
+            } finally {
                 setLoading(false);
-            });
+            }
         });
 
         function setLoading(isLoading) {
+            submitButton.disabled = isLoading;
             if (isLoading) {
-                submitButton.disabled = true;
-                buttonText.classList.add('hidden');
-                buttonSpinner.classList.remove('hidden');
+                buttonText.style.display = 'none';
+                buttonSpinner.style.display = 'inline-block';
             } else {
-                submitButton.disabled = false;
-                buttonText.classList.remove('hidden');
-                buttonSpinner.classList.add('hidden');
+                buttonText.style.display = 'inline-block';
+                buttonSpinner.style.display = 'none';
             }
         }
 
         function showMessage(message, type) {
             messageBox.textContent = message;
-            messageBox.classList.remove('hidden', 'bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
+            messageBox.className = 'mt-6 text-center text-sm p-4 rounded-md'; // Reset classes
             
             if (type === 'success') {
                 messageBox.classList.add('bg-green-100', 'text-green-800');
@@ -170,13 +169,7 @@
                 messageBox.classList.add('hidden');
             }, 5000);
         }
-
     </script>
 </body>
 </html>
-
-
-
-
-
 
